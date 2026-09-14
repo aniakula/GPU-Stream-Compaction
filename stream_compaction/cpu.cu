@@ -12,11 +12,12 @@ namespace StreamCompaction {
             return timer;
         }
 
-        /**
+        /*
          * CPU scan (prefix sum).
          * For performance analysis, this is supposed to be a simple for loop.
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
+
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
 			odata[0] = 0;

@@ -15,10 +15,20 @@ namespace StreamCompaction {
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        void scan(int n, int *odata, const int *idata) {
+        void scan(int n, int* odata, const int* idata) {
+            int padded_size = 1 << ilog2ceil(n);
+            int* kern_input;
+            cudaMalloc((void**)&kern_input, padded_size * sizeof(int));
+
+            cudaMemset(kern_input, 0, padded_size * sizeof(int));
+            cudaMemcpy(kern_input, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+
             timer().startGpuTimer();
-            // TODO
+            //scanEfficient(paddedN, dev_data);
             timer().endGpuTimer();
+
+            cudaMemcpy(odata, kern_input, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaFree(dev_data);
         }
 
         /**
@@ -31,10 +41,7 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-            // TODO
-            timer().endGpuTimer();
-            return -1;
+            
         }
     }
 }

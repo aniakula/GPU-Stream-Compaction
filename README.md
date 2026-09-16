@@ -29,7 +29,15 @@ Work-efficient scan does two passes: an up-sweep phase computes partial sums fol
 * images source [GPU Gems](https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda)
 
 
-## Implementation
+## Features
+
+* Implemented a CPU version of scan and compact
+* Implemented a GPU naive version of scan and compact
+* Implemented a GPU work efficient version of scan and compact
+* Wrote a wrapper around the thrust library implementation of scan
+* Benchmarked all the implementations and analysed results (below)
+
+## Analysis
 
 ### Choice of Block Size
 Below is a graph comparing block size and scan implementation run times. Given these results I chose to use a block size of 256 since it seemed to on average have the least latency between the two implementations. The other candidate was a block size of 512 but it had much higher latency in the naive case and is within 0.02 ms of the 256 size run for the work efficient scan.

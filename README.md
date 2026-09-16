@@ -9,10 +9,28 @@ CUDA Stream Compaction
 
 ## Stream Compaction
 
-### What is Scanning and Stream compaction?
+### What is Scanning?
+Exclusive scan (prefix sum) takes an array and produces a new array where each element is the sum of all elements before it in the original array not including itself. For example, given [1, 2, 3, 4], an exclusive scan produces [0, 1, 3, 6].
+
+Two scan algorithms are compared in this project:
+
+Naive scan performs log(n) passes over the array, where each pass adds each element to another element a fixed stride away, and doubles the stride each iteration. It performs O(n log n) additions.
+
+<img width="1062" height="530" alt="image" src="https://github.com/user-attachments/assets/504cee7d-8e8e-47ef-9cf6-93695e80ee08" />
+* image source [GPU Gems](https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda)
+
+Work-efficient scan does two passes: an up-sweep phase computes partial sums followed by a down-sweep phase that traverses back down the tree distributing those partial sums to produce the final scan. This reduces total work to O(n) at the cost of needing twice as many total kernel launches compared to naive scan.
+
+<img width="1024" height="488" alt="image" src="https://github.com/user-attachments/assets/4cd564f9-4bb7-40e5-b1dd-72b59bf02447" />
+
+<img width="1022" height="620" alt="image" src="https://github.com/user-attachments/assets/6c3452df-76c2-4fe2-a29a-7c2eaa417014" />
+
+* images source [GPU Gems](https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda)
 
 
-### Choice of Block Size:
+## Implementation
+
+### Choice of Block Size
 Below is a graph comparing block size and scan implementation run times. Given these results I chose to use a block size of 256 since it seemed to on average have the least latency between the two implementations. The other candidate was a block size of 512 but it had much higher latency in the naive case and is within 0.02 ms of the 256 size run for the work efficient scan.
 
 <img width="1510" height="622" alt="image" src="https://github.com/user-attachments/assets/0d7cb13d-b00a-4c73-a5ac-edee0ca39cb1" />

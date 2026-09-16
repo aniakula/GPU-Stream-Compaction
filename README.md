@@ -12,3 +12,6 @@ CUDA Stream Compaction
 ### Choice of Block Size:
 
 <img width="1510" height="622" alt="image" src="https://github.com/user-attachments/assets/0d7cb13d-b00a-4c73-a5ac-edee0ca39cb1" />
+
+### comparison of scan impl:
+<img width="1514" height="1004" alt="image" src="https://github.com/user-attachments/assets/798918d5-c8ce-4deb-a597-b82204151f4e" />

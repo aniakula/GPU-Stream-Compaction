@@ -38,8 +38,10 @@ namespace StreamCompaction {
             int* pong_buffer;
             cudaMalloc((void**)&ping_buffer, n * sizeof(int));
             cudaMalloc((void**)&pong_buffer, n * sizeof(int));
+            checkCUDAError("cudaMalloc failed for ping pong buffers in compact");
 
             cudaMemcpy(ping_buffer, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            checkCUDAError("cudaMemcpy failed for ping_buffer to idata");
 
             timer().startGpuTimer();
 
@@ -57,6 +59,7 @@ namespace StreamCompaction {
             timer().endGpuTimer();
 
             cudaMemcpy(odata, pong_buffer, n * sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAError("cudaMemcpy failed for pong_buffer in compact");
 
             cudaFree(ping_buffer);
             cudaFree(pong_buffer);

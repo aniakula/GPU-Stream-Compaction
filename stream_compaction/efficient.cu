@@ -5,6 +5,7 @@
 
 namespace StreamCompaction {
     namespace Efficient {
+
         using StreamCompaction::Common::PerformanceTimer;
         PerformanceTimer& timer()
         {
@@ -12,36 +13,128 @@ namespace StreamCompaction {
             return timer;
         }
 
-        /**
-         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
-         */
-        void scan(int n, int* odata, const int* idata) {
-            int padded_size = 1 << ilog2ceil(n);
-            int* kern_input;
-            cudaMalloc((void**)&kern_input, padded_size * sizeof(int));
+        __global__ void kernUpSweep(int n, int d, int* data) {
+            int index = threadIdx.x + (blockIdx.x * blockDim.x);
+            int stride = 1 << (d + 1); // 2^(d+1)
 
-            cudaMemset(kern_input, 0, padded_size * sizeof(int));
-            cudaMemcpy(kern_input, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            //find cell to do work on:
+            int k = index * stride;
+
+            if (k >= n) return;
+
+            //in place addition
+            data[k + stride - 1] += data[k + (stride >> 1) - 1];
+        }
+
+        __global__ void kernDownSweep(int n, int d, int* data) {
+            int index = threadIdx.x + (blockIdx.x * blockDim.x);
+
+            int stride = 1 << (d + 1);
+            int k = index * stride;
+
+            if (k >= n) return;
+
+            int leftChild = k + (stride >> 1) - 1;
+            int rightChild = k + stride - 1;
+
+            int t = data[leftChild];
+            data[leftChild] = data[rightChild];
+            data[rightChild] += t;
+        }
+
+        void scanOnDevice(int n, int* dev_data) {
+            int d_max = ilog2ceil(n);
+
+            for (int d = 0; d < d_max; d++) {
+                // calculate num active threads (prevent modulo use)
+                int numThreads = n >> (d + 1);
+                int gridSize = (numThreads + blockSize - 1) / blockSize;
+                kernUpSweep << <gridSize, blockSize >> > (n, d, dev_data);
+                checkCUDAError("kernUpSweep failed");
+            }
+
+            // zero the root before down-sweep.
+            cudaMemset(dev_data + n - 1, 0, sizeof(int));
+            checkCUDAError("cudaMemset root failed");
+
+            for (int d = d_max - 1; d >= 0; d--) {
+                int numThreads = n >> (d + 1);
+                int gridSize = (numThreads + blockSize - 1) / blockSize;
+                kernDownSweep << <gridSize, blockSize >> > (n, d, dev_data);
+                checkCUDAError("kernDownSweep failed");
+            }
+        }
+
+        void scan(int n, int* odata, const int* idata) {
+            int paddedN = 1 << ilog2ceil(n);
+            int* dev_data;
+            cudaMalloc((void**)&dev_data, paddedN * sizeof(int));
+            checkCUDAError("cudaMalloc dev_data failed");
+
+            cudaMemset(dev_data, 0, paddedN * sizeof(int));
+            cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            checkCUDAError("cudaMemcpy idata -> dev_data failed");
 
             timer().startGpuTimer();
-            //scanEfficient(paddedN, dev_data);
+            scanOnDevice(paddedN, dev_data);
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, kern_input, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_data, n * sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAError("cudaMemcpy dev_data -> odata failed");
+
             cudaFree(dev_data);
         }
 
-        /**
-         * Performs stream compaction on idata, storing the result into odata.
-         * All zeroes are discarded.
-         *
-         * @param n      The number of elements in idata.
-         * @param odata  The array into which to store elements.
-         * @param idata  The array of elements to compact.
-         * @returns      The number of elements remaining after compaction.
-         */
-        int compact(int n, int *odata, const int *idata) {
-            
+        int compact(int n, int* odata, const int* idata) {
+            int paddedN = 1 << ilog2ceil(n);
+
+            int* dev_idata;
+            int* dev_odata;
+            int* mask;
+            int* indices;
+            cudaMalloc((void**)&dev_idata, n * sizeof(int));
+            cudaMalloc((void**)&dev_odata, n * sizeof(int));
+            cudaMalloc((void**)&mask, paddedN * sizeof(int));
+            cudaMalloc((void**)&indices, paddedN * sizeof(int));
+            checkCUDAError("cudaMalloc failed in compact");
+
+            cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            checkCUDAError("cudaMemcpy idata to dev_idata failed");
+
+            dim3 gridN((n + blockSize - 1) / blockSize);
+
+            timer().startGpuTimer();
+
+            StreamCompaction::Common::kernMapToBoolean << <gridN, blockSize >> > (n, mask, dev_idata);
+            checkCUDAError("kernMapToBoolean failed");
+
+            cudaMemset(indices, 0, paddedN * sizeof(int));
+            cudaMemcpy(indices, mask, n * sizeof(int), cudaMemcpyDeviceToDevice);
+            checkCUDAError("cudaMemcpy mask to indices failed");
+
+            scanOnDevice(paddedN, indices);
+
+            StreamCompaction::Common::kernScatter << <gridN, blockSize >> > (n, dev_odata, dev_idata, mask, indices);
+            checkCUDAError("kernScatter failed");
+
+            timer().endGpuTimer();
+
+            //save last mask and index elem to compute count
+            int lastMask, lastIndex;
+            cudaMemcpy(&lastMask, mask + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&lastIndex, indices + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAError("cudaMemcpy lastMAsk and lastIndex failed");
+            int count = lastMask == 0 ? lastIndex : lastIndex + 1;
+
+            cudaMemcpy(odata, dev_odata, count * sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAError("cudaMemcpy dev_odata to odata failed");
+
+            cudaFree(dev_idata);
+            cudaFree(dev_odata);
+            cudaFree(mask);
+            cudaFree(indices);
+
+            return count;
         }
     }
 }

@@ -3,12 +3,12 @@ CUDA Stream Compaction
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
-* (TODO) YOUR NAME HERE
-  * (TODO) [LinkedIn](), [personal website](), [twitter](), etc.
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Anirudh Akula
+  * [linkedIn](https://www.linkedin.com/in/anirudh-akula/)
+* Tested on: Windows 11, NVIDIA T1000 4096MB (CETS Virtual PC)
 
-### (TODO: Your README)
+## Stream Compaction Analysis
 
-Include analysis, etc. (Remember, this is public, so don't put
-anything here that you don't want to share with the world.)
+### Choice of Block Size:
 
+<img width="1510" height="622" alt="image" src="https://github.com/user-attachments/assets/0d7cb13d-b00a-4c73-a5ac-edee0ca39cb1" />

@@ -17,6 +17,7 @@ Two scan algorithms are compared in this project:
 Naive scan performs log(n) passes over the array, where each pass adds each element to another element a fixed stride away, and doubles the stride each iteration. It performs O(n log n) additions.
 
 <img width="1062" height="530" alt="image" src="https://github.com/user-attachments/assets/504cee7d-8e8e-47ef-9cf6-93695e80ee08" />
+
 * image source [GPU Gems](https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda)
 
 Work-efficient scan does two passes: an up-sweep phase computes partial sums followed by a down-sweep phase that traverses back down the tree distributing those partial sums to produce the final scan. This reduces total work to O(n) at the cost of needing twice as many total kernel launches compared to naive scan.
